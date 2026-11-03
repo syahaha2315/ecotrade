@@ -1,0 +1,19 @@
+<div class="form-page">
+    <div class="page-heading"><div><p class="section-label">Barang saya</p><h1><?= $page === 'create' ? 'Tambah barang' : 'Edit barang' ?></h1><p class="muted">Beritahu pelajar lain apa yang kau kongsi dan keadaan sebenar barang itu.</p></div></div>
+    <?php if ($errors !== []): ?><div class="error-summary" role="alert"><p>Maklumat belum disimpan. Semak ruangan yang ditandakan di bawah.</p></div><?php endif; ?>
+    <?php if ($categories === []): ?><p class="error-summary" role="alert">Belum ada kategori aktif. Hubungi admin untuk mengaktifkan kategori sebelum menambah barang.</p><?php endif; ?>
+    <form method="post" action="<?= e(url($page, $listing !== null ? ['id' => $listing['listing_id']] : [])) ?>" class="stack-form form-panel">
+        <input type="hidden" name="csrf_token" value="<?= e($csrfToken) ?>">
+        <div><label for="title">Tajuk barang</label><input id="title" name="title" required minlength="5" maxlength="180" placeholder="Contoh: Buku Asas Pengaturcaraan" value="<?= e($values['title']) ?>"<?= fieldState('title', $errors) ?>><?php fieldError('title', $errors); ?></div>
+        <div class="form-columns">
+            <div><label for="category_id">Kategori</label><select id="category_id" name="category_id" required<?= fieldState('category_id', $errors) ?>><option value="">Pilih kategori</option><?php foreach ($categories as $category): ?><option value="<?= e($category['category_id']) ?>" <?= (string) $values['category_id'] === (string) $category['category_id'] ? 'selected' : '' ?>><?= e($category['category_name']) ?></option><?php endforeach; ?></select><?php fieldError('category_id', $errors); ?></div>
+            <div><label for="item_condition">Keadaan barang</label><select id="item_condition" name="item_condition" required<?= fieldState('item_condition', $errors) ?>><?php foreach (CONDITIONS as $value => $label): ?><option value="<?= e($value) ?>" <?= $values['item_condition'] === $value ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach; ?></select><?php fieldError('item_condition', $errors); ?></div>
+        </div>
+        <div class="form-columns">
+            <div><label for="listing_type">Jenis perkongsian</label><select id="listing_type" name="listing_type" required<?= fieldState('listing_type', $errors) ?>><?php foreach (LISTING_TYPES as $value => $label): ?><option value="<?= e($value) ?>" <?= $values['listing_type'] === $value ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach; ?></select><?php fieldError('listing_type', $errors); ?></div>
+            <div><label for="source_language">Bahasa penerangan</label><select id="source_language" name="source_language" required<?= fieldState('source_language', $errors) ?>><option value="ms" <?= $values['source_language'] === 'ms' ? 'selected' : '' ?>>Bahasa Melayu</option><option value="en" <?= $values['source_language'] === 'en' ? 'selected' : '' ?>>English</option></select><?php fieldError('source_language', $errors); ?></div>
+        </div>
+        <div><label for="description">Penerangan barang</label><textarea id="description" name="description" rows="7" required minlength="20" maxlength="5000" placeholder="Nyatakan kandungan, keadaan dan sebarang kekurangan barang."<?= fieldState('description', $errors) ?>><?= e($values['description']) ?></textarea><?php fieldError('description', $errors); ?><p class="field-help">20 hingga 5,000 aksara. Gambar belum diperlukan untuk prototype ini.</p></div>
+        <div class="form-actions"><button type="submit" class="button button-primary" <?= $categories === [] ? 'disabled data-permanent-disabled' : '' ?>><?= $page === 'create' ? 'Simpan barang' : 'Simpan perubahan' ?></button><a class="button" href="<?= e($listing !== null ? url('view', ['id' => $listing['listing_id']]) : url('mine')) ?>">Batal</a></div>
+    </form>
+</div>

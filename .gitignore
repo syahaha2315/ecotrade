@@ -1,0 +1,9 @@
+/config/local.php
+/.local/
+/.codex/
+/.agents/
+/.aws/
+.env
+.env.*
+!.env.example
+*.log

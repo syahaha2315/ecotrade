@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-const CONDITIONS = ['new' => 'Baru', 'like_new' => 'Seperti baru', 'good' => 'Baik', 'fair' => 'Masih boleh digunakan'];
-const LISTING_TYPES = ['donation' => 'Sumbangan', 'exchange' => 'Pertukaran'];
-const LISTING_STATUSES = ['available' => 'Tersedia', 'reserved' => 'Ditempah', 'completed' => 'Selesai', 'archived' => 'Diarkibkan'];
+const CONDITIONS = ['new' => 'New', 'like_new' => 'Like new', 'good' => 'Good', 'fair' => 'Fair'];
+const LISTING_TYPES = ['donation' => 'Donation', 'exchange' => 'Exchange'];
+const LISTING_STATUSES = ['available' => 'Available', 'reserved' => 'Reserved', 'completed' => 'Completed', 'archived' => 'Archived'];
 
 function activeCategories(PDO $pdo): array
 {
@@ -12,11 +12,11 @@ function activeCategories(PDO $pdo): array
 
 function listingById(PDO $pdo, int $id, bool $lock = false): array
 {
-    $query = $pdo->prepare('SELECT l.*, c.category_name, c.is_active AS category_active, u.full_name AS owner_name FROM listings l JOIN categories c ON c.category_id = l.category_id JOIN users u ON u.user_id = l.owner_id WHERE l.listing_id = ?' . ($lock ? ' FOR UPDATE' : ''));
+    $query = $pdo->prepare('SELECT l.*, c.category_name, c.is_active AS category_active, u.full_name AS owner_name, u.is_active AS owner_active, u.role AS owner_role FROM listings l JOIN categories c ON c.category_id = l.category_id JOIN users u ON u.user_id = l.owner_id WHERE l.listing_id = ?' . ($lock ? ' FOR UPDATE' : ''));
     $query->execute([$id]);
     $listing = $query->fetch();
     if (!$listing) {
-        throw new HttpError(404, 'Barang ini tidak ditemui.');
+        throw new HttpError(404, 'Listing not found.');
     }
     return $listing;
 }
@@ -24,14 +24,33 @@ function listingById(PDO $pdo, int $id, bool $lock = false): array
 function requireOwner(array $listing, array $user): void
 {
     if ((int) $listing['owner_id'] !== (int) $user['user_id']) {
-        throw new HttpError(403, 'Hanya pemilik boleh mengubah atau mengarkibkan barang ini.');
+        throw new HttpError(403, 'Only the owner can change this listing.');
     }
 }
 
 function requireEditable(array $listing): void
 {
+    if ($listing['deleted_at'] !== null) {
+        throw new HttpError(404, 'Listing not found.');
+    }
     if ($listing['status'] !== 'available') {
-        throw new HttpError(409, 'Barang ini sudah ditempah, selesai atau diarkibkan. Maklumatnya tidak boleh diubah.');
+        throw new HttpError(409, 'Reserved, completed and archived listings cannot be edited.');
+    }
+}
+
+function deleteListing(PDO $pdo, int $id, array $owner): void
+{
+    $pdo->beginTransaction();
+    try {
+        $listing = listingById($pdo, $id, true);
+        requireOwner($listing, $owner);
+        requireEditable($listing);
+        $pdo->prepare('UPDATE listings SET deleted_at = UTC_TIMESTAMP() WHERE listing_id = ?')->execute([$id]);
+        $pdo->prepare('DELETE FROM listing_photos WHERE listing_id = ?')->execute([$id]);
+        $pdo->commit();
+    } catch (Throwable $error) {
+        $pdo->rollBack();
+        throw $error;
     }
 }
 
@@ -48,39 +67,48 @@ function validateListing(PDO $pdo, array $values): array
 {
     $errors = [];
     if (mb_strlen($values['title']) < 5 || mb_strlen($values['title']) > 180) {
-        $errors['title'] = 'Tajuk perlu antara 5 hingga 180 aksara.';
+        $errors['title'] = 'Enter a title between 5 and 180 characters.';
     }
     if (mb_strlen($values['description']) < 20 || mb_strlen($values['description']) > 5000) {
-        $errors['description'] = 'Penerangan perlu antara 20 hingga 5,000 aksara.';
+        $errors['description'] = 'Enter a description between 20 and 5,000 characters.';
     }
     $category = $pdo->prepare('SELECT category_id FROM categories WHERE category_id = ? AND is_active = 1');
     $id = filter_var($values['category_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
     $category->execute([$id === false ? 0 : $id]);
     if (!$category->fetchColumn()) {
-        $errors['category_id'] = 'Pilih kategori yang masih aktif.';
+        $errors['category_id'] = 'Choose an active category.';
     }
     if (!array_key_exists($values['item_condition'], CONDITIONS)) {
-        $errors['item_condition'] = 'Pilih keadaan barang yang sah.';
+        $errors['item_condition'] = 'Choose a valid item condition.';
     }
     if (!array_key_exists($values['listing_type'], LISTING_TYPES)) {
-        $errors['listing_type'] = 'Pilih sumbangan atau pertukaran.';
+        $errors['listing_type'] = 'Choose donation or exchange.';
     }
     if (!in_array($values['source_language'], ['ms', 'en'], true)) {
-        $errors['source_language'] = 'Pilih bahasa penerangan.';
+        $errors['source_language'] = 'Choose a description language.';
     }
     return $errors;
 }
 
-function createListing(PDO $pdo, array $values, array $user): int
+function createListing(PDO $pdo, array $values, array $user, array $photos = []): int
 {
-    $pdo->prepare('INSERT INTO listings (owner_id, category_id, title, description, source_language, item_condition, listing_type) VALUES (?, ?, ?, ?, ?, ?, ?)')->execute([
-        $user['user_id'], $values['category_id'], $values['title'], $values['description'],
-        $values['source_language'], $values['item_condition'], $values['listing_type'],
-    ]);
-    return (int) $pdo->lastInsertId();
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('INSERT INTO listings (owner_id, category_id, title, description, source_language, item_condition, listing_type) VALUES (?, ?, ?, ?, ?, ?, ?)')->execute([
+            $user['user_id'], $values['category_id'], $values['title'], $values['description'],
+            $values['source_language'], $values['item_condition'], $values['listing_type'],
+        ]);
+        $id = (int) $pdo->lastInsertId();
+        saveListingPhotos($pdo, $id, $photos);
+        $pdo->commit();
+        return $id;
+    } catch (Throwable $error) {
+        $pdo->rollBack();
+        throw $error;
+    }
 }
 
-function changeListing(PDO $pdo, int $id, array $user, ?array $values): void
+function changeListing(PDO $pdo, int $id, array $user, ?array $values, array $photos = [], bool $removePhotos = false): void
 {
     $pdo->beginTransaction();
     try {
@@ -97,6 +125,7 @@ function changeListing(PDO $pdo, int $id, array $user, ?array $values): void
             if ($listing['description'] !== $values['description'] || $listing['source_language'] !== $values['source_language']) {
                 $pdo->prepare('DELETE FROM translations WHERE listing_id = ?')->execute([$id]);
             }
+            saveListingPhotos($pdo, $id, $photos, $removePhotos);
         }
         $pdo->commit();
     } catch (Throwable $error) {
@@ -107,7 +136,7 @@ function changeListing(PDO $pdo, int $id, array $user, ?array $values): void
 
 function searchListings(PDO $pdo, array $filters, ?array $owner): array
 {
-    $where = [];
+    $where = ['l.deleted_at IS NULL'];
     $parameters = [];
     if ($owner !== null) {
         $where[] = 'l.owner_id = ?';

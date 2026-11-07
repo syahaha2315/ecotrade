@@ -1,5 +1,21 @@
 # EcoTrade: bukti langkah 3, 4 dan 5
 
+## Account and listing usability update
+
+- 18 schema checks, 77 HTTP prototype checks and 42 browser checks passed.
+- Verified the password visibility control, incomplete email rejection, profile photo upload and removal, and sign-in using updated email and password. Credential updates rejected a wrong current password and an email already in use.
+- Verified the participant avatar, listing cover and listing title in the conversation header, then sent and received messages from separate student sessions at 320px.
+- The new administrator signed in and reached the dashboard after the demo admin was retired. Listing, Profile and chat were checked on narrow layouts. The listing form uses visible native choices, and the eye control preserves the accessible label and keyboard focus.
+
+## English interface, admin, chat and photos update
+
+- Database and HTTP checks passed: 18 schema checks and 74 prototype checks. The new cases cover the admin landing page, role denial, session revocation, category availability, two-way chat, archived conversations and monthly CSV totals.
+- Browser checks passed: 34 checks across registration, login, listing editing, invalid photo rejection, two-image upload and gallery navigation, including views at 320px to 1440px. The admin navigation, report filters, CSV download and logout also worked at 320px with JavaScript disabled.
+- Google authorization buttons, PKCE redirect, invalid state rejection and cancellation passed with a local test configuration. Live Google sign-in requires the project's OAuth client.
+- The antislop check used the existing catalogue direction. Interface copy is English, admin figures come from database queries, gallery images come from uploads, forms and carousel controls use native HTML, and short transitions respect the reduced-motion preference.
+
+The original phase 3 to 5 results below describe the prototype before this update.
+
 Tarikh: 2 November 2026, Asia/Kuala_Lumpur. Diuji pada PHP 8.2.12, MariaDB 10.4.32 dan Edge headless melalui Playwright yang tersedia pada laptop.
 
 ## Hasil

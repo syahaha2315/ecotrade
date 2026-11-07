@@ -9,7 +9,7 @@ header('X-Content-Type-Options: nosniff');
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
     http_response_code(405);
     header('Allow: GET');
-    echo json_encode(['status' => 'error', 'message' => 'Endpoint ini menerima GET sahaja.']);
+    echo json_encode(['status' => 'error', 'message' => 'This endpoint accepts GET requests.']);
     exit;
 }
 
@@ -22,9 +22,9 @@ try {
     $categories = $query->fetchAll();
     $result = [
         'application' => 'EcoTrade',
-        'stage' => 'Semakan sambungan database EcoTrade',
+        'stage' => 'EcoTrade database check',
         'status' => 'connected',
-        'message' => $categories === [] ? 'Database bersambung. Belum ada kategori aktif.' : 'PHP berjaya membaca kategori daripada database.',
+        'message' => $categories === [] ? 'Database connected. There are no active categories.' : 'PHP read the categories from the database.',
         'categories' => $categories,
     ];
 } catch (Throwable $error) {
@@ -33,8 +33,8 @@ try {
     $result = [
         'application' => 'EcoTrade',
         'status' => 'error',
-        'message' => 'Database belum dapat dibaca. Jalankan scripts/start-db.ps1 dan pastikan setup sudah dijalankan.',
-        'help' => 'Rujuk README.md dalam folder projek. Butiran ralat ada dalam terminal PHP.',
+        'message' => 'Start the database and make sure setup has run.',
+        'help' => 'See README.md. Details are in the PHP terminal.',
     ];
 }
 

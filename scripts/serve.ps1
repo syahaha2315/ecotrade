@@ -5,5 +5,5 @@ $php = Find-EcoTradePhp $PhpPath
 $public = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\public')).Path
 Write-Host "EcoTrade: http://127.0.0.1:$Port/"
 Write-Host 'Biarkan terminal ini terbuka. Tekan Ctrl+C untuk hentikan server PHP.'
-& $php -S "127.0.0.1:$Port" -t $public
+& $php -d upload_max_filesize=10M -d post_max_size=41M -S "127.0.0.1:$Port" -t $public
 if ($LASTEXITCODE -ne 0) { throw 'Server PHP berhenti dengan ralat. Semak port atau mesej di atas.' }

@@ -60,17 +60,39 @@ function check(bool $condition, string $message): void
 
 $pdo = connectDatabase();
 $suffix = bin2hex(random_bytes(8));
-$emails = ["qa.$suffix@ecotrade.test", 'qa.' . bin2hex(random_bytes(8)) . '@ecotrade.test'];
+$emails = ["ecotrade.qa.$suffix@gmail.com", 'ecotrade.qa.' . bin2hex(random_bytes(8)) . '@outlook.com'];
 $categoryId = 0;
+$adminId = 0;
+$requestIds = [];
 $failed = false;
 try {
     $a = new TestClient(); $b = new TestClient(); $guest = new TestClient();
+    $admin = new TestClient();
+    $adminEmail = 'qa.admin.' . $suffix . '@ecotrade.test';
+    $adminPassword = bin2hex(random_bytes(16));
+    $pdo->prepare("INSERT INTO users (full_name, email, password_hash, role) VALUES ('QA Admin', ?, ?, 'admin')")
+        ->execute([$adminEmail, password_hash($adminPassword, PASSWORD_DEFAULT)]);
+    $adminId = (int) $pdo->lastInsertId();
+    $adminLogin = $admin->request('?page=login', [
+        'csrf_token' => $admin->token('?page=login'),
+        'email' => $adminEmail,
+        'password' => $adminPassword,
+    ], true);
+    check($adminLogin['status'] === 303 && str_contains($adminLogin['headers']['location'], 'page=admin'), 'Admin login opens the dashboard.');
+    $overview = $admin->request('?page=admin');
+    check($overview['status'] === 200 && str_contains($overview['body'], 'href="/?page=admin-reports"'), 'Admin overview loads with the Reports link.');
     check($guest->request('?page=create')['status'] === 303, 'Guest dihantar ke login untuk tambah barang.');
     check($guest->request('?page=register', ['full_name' => 'Forged'], true)['status'] === 403, 'POST tanpa CSRF ditolak.');
+    $badEmail = $guest->request('?page=login', ['csrf_token' => $guest->token('?page=login'), 'email' => 'missing-domain@local', 'password' => 'anything'], true);
+    check($badEmail['status'] === 422 && str_contains($badEmail['body'], 'Enter a valid email address'), 'Sign-in validates email format on the server.');
     $password = 'QaEcoTrade!2026';
     foreach ([$a, $b] as $index => $client) {
         $registration = ['csrf_token' => $client->token('?page=register'), 'full_name' => 'QA Student ' . $index, 'email' => $emails[$index], 'password' => $password, 'password_confirmation' => $password, 'role' => 'admin'];
         if ($index === 0) {
+            $badDomain = $client->request('?page=register', array_replace($registration, ['email' => 'ahmad@iwjdoq.com']), true);
+            check($badDomain['status'] === 422 && str_contains($badDomain['body'], 'supported email provider'), 'Registration rejects an unsupported email domain.');
+            $weak = 'alllowercase2026';
+            check($client->request('?page=register', array_replace($registration, ['password' => $weak, 'password_confirmation' => $weak]), true)['status'] === 422, 'Registration rejects a long password without the required character types.');
             check($client->request('?page=register', array_replace($registration, ['password_confirmation' => 'different']), true)['status'] === 422, 'Password confirmation salah ditolak.');
             check($client->request('?page=register', array_replace($registration, ['password' => 'short', 'password_confirmation' => 'short']), true)['status'] === 422, 'Password pendek ditolak di server.');
         }
@@ -96,15 +118,24 @@ try {
     $sessionQuery->execute([hash('sha256', $session), $aId]);
     check(strlen($session) === 64 && (int) $sessionQuery->fetchColumn() === 1 && str_contains($login['headers']['set-cookie'], 'HttpOnly') && str_contains($login['headers']['set-cookie'], 'SameSite=Lax'), 'Session rawak dihash dalam database; cookie HttpOnly dan SameSite.');
     check($a->request('?page=mine')['status'] === 200, 'Session membolehkan halaman Barang saya dibuka.');
-    $pdo->prepare('INSERT INTO categories (category_name) VALUES (?)')->execute(['[QA] ' . $suffix]);
-    $categoryId = (int) $pdo->lastInsertId();
+    $profileToken = $a->token('?page=profile');
+    check($a->request('?page=profile', ['csrf_token' => $profileToken, 'action' => 'credentials', 'email' => $emails[0], 'current_password' => 'wrong'], true)['status'] === 422, 'Profile sign-in changes require the current password.');
+    check($a->request('?page=profile', ['csrf_token' => $profileToken, 'action' => 'credentials', 'email' => $emails[1], 'current_password' => $password], true)['status'] === 422, 'Profile cannot take another account email.');
+    $categoryName = '[QA] ' . $suffix;
+    $adminToken = $admin->token('?page=admin-categories');
+    $createdCategory = $admin->request('?page=admin-categories', ['csrf_token' => $adminToken, 'name' => $categoryName, 'active' => '1'], true);
+    $findCategory = $pdo->prepare('SELECT category_id FROM categories WHERE category_name = ?');
+    $findCategory->execute([$categoryName]);
+    $categoryId = (int) $findCategory->fetchColumn();
+    check($createdCategory['status'] === 303 && $categoryId > 0, 'Admin adds a category.');
     $title = '[QA] Buku ' . $suffix;
     $values = ['csrf_token' => $a->token('?page=create'), 'title' => $title, 'description' => 'Buku ujian untuk pembelajaran. <script>alert("xss")</script>', 'category_id' => $categoryId, 'item_condition' => 'good', 'listing_type' => 'donation', 'source_language' => 'ms', 'owner_id' => $bId];
     check($a->request('?page=create', array_replace($values, ['category_id' => 0]), true)['status'] === 422, 'Kategori tidak wujud ditolak.');
     check($a->request('?page=create', array_replace($values, ['item_condition' => 'invalid']), true)['status'] === 422, 'Keadaan barang tidak sah ditolak.');
-    $pdo->prepare('UPDATE categories SET is_active = 0 WHERE category_id = ?')->execute([$categoryId]);
+    $categoryName .= ' edited';
+    check($admin->request('?page=admin-categories', ['csrf_token' => $adminToken, 'id' => $categoryId, 'name' => $categoryName, 'active' => '0'], true)['status'] === 303, 'Admin renames and deactivates the category.');
     check($a->request('?page=create', $values, true)['status'] === 422, 'Kategori tidak aktif ditolak.');
-    $pdo->prepare('UPDATE categories SET is_active = 1 WHERE category_id = ?')->execute([$categoryId]);
+    check($admin->request('?page=admin-categories', ['csrf_token' => $adminToken, 'id' => $categoryId, 'name' => $categoryName, 'active' => '1'], true)['status'] === 303, 'Admin reactivates the category.');
     $created = $a->request('?page=create', $values, true);
     parse_str(parse_url($created['headers']['location'] ?? '', PHP_URL_QUERY) ?? '', $location);
     $id = (int) ($location['id'] ?? 0);
@@ -120,6 +151,35 @@ try {
     check($guest->request('?page=browse&q=' . urlencode("' OR 1=1 --"))['status'] === 200, 'Input berbentuk SQL diproses sebagai teks carian.');
     check($b->request('?page=login', ['csrf_token' => $b->token('?page=login'), 'email' => $emails[1], 'password' => $password], true)['status'] === 303, 'Student B login dalam session berasingan.');
     $bToken = $b->token('?page=mine');
+    foreach (['admin', 'admin-users', 'admin-categories', 'admin-reports', 'admin-export'] as $route) {
+        check($b->request('?page=' . $route)['status'] === 403, 'Student is denied access to ' . $route . '.');
+    }
+    check($b->request('?page=admin-users', ['csrf_token' => $bToken, 'id' => $aId, 'active' => '0'], true)['status'] === 403, 'A student cannot deactivate another student.');
+    $thread = '?page=chat&id=' . $id . '&buyer=' . $bId;
+    check($a->request($thread)['status'] === 404, 'Owner cannot initiate a conversation on behalf of another student.');
+    check($b->request($thread, ['csrf_token' => $bToken, 'message' => 'Can I collect the book tomorrow?'], true)['status'] === 303, 'Student sends a message about a listing.');
+    check(str_contains($a->request('?page=inbox')['body'], 'Can I collect the book tomorrow?'), 'Owner sees the conversation in their inbox.');
+    check($a->request($thread, ['csrf_token' => $a->token($thread), 'message' => 'Yes, after class.'], true)['status'] === 303, 'Owner replies to the same conversation.');
+    check(str_contains($b->request($thread)['body'], 'Yes, after class.'), 'Student sees the reply.');
+    check($b->request('?page=chat&id=' . $id . '&buyer=' . $aId)['status'] === 404, 'Forged buyer ID cannot read a thread.');
+    check($guest->request($thread)['status'] === 303, 'Guest cannot access private messages.');
+    check($admin->request($thread)['status'] === 403, 'Admin cannot read private student chat.');
+    check($admin->request('?page=admin-users', ['csrf_token' => $adminToken, 'id' => $bId, 'active' => '0'], true)['status'] === 303 &&
+        $b->request('?page=mine')['status'] === 303, 'Deactivating a student revokes their session.');
+    check($admin->request('?page=admin-users', ['csrf_token' => $adminToken, 'id' => $bId, 'active' => '1'], true)['status'] === 303, 'Admin reactivates the student.');
+    check($b->request('?page=login', ['csrf_token' => $b->token('?page=login'), 'email' => $emails[1], 'password' => $password], true)['status'] === 303, 'Reactivated student can sign in again.');
+    $bToken = $b->token('?page=mine');
+    $request = $pdo->prepare('INSERT INTO requests (requester_id, target_listing_id, status, created_at, completed_at) VALUES (?, ?, ?, ?, ?)');
+    $request->execute([$bId, $id, 'completed', '2026-02-03 12:00:00', '2026-03-02 12:00:00']);
+    $requestIds[] = (int) $pdo->lastInsertId();
+    $request->execute([$bId, $id, 'pending', '2026-02-04 12:00:00', null]);
+    $requestIds[] = (int) $pdo->lastInsertId();
+    $report = '&from=2026-02-01&to=2026-03-31&category=' . $categoryId . '&type=donation';
+    $reportPage = $admin->request('?page=admin-reports' . $report);
+    check($reportPage['status'] === 200 && str_contains($reportPage['body'], '50.0%'), 'Report shows the completion rate for the February request cohort.');
+    $csv = $admin->request('?page=admin-export' . $report);
+    check($csv['status'] === 200 && str_contains($csv['headers']['content-type'], 'text/csv') &&
+        str_contains($csv['body'], ',Donation,0,2,1,0,50.0%') && str_contains($csv['body'], ',Donation,0,0,0,1,N/A'), 'CSV separates request creation and completion months.');
     check($b->request('?page=edit&id=' . $id)['status'] === 403, 'Student B ditolak untuk GET edit barang A.');
     check($b->request('?page=edit&id=' . $id, array_replace($values, ['csrf_token' => $bToken, 'title' => 'Forged update']), true)['status'] === 403, 'Student B ditolak untuk POST edit barang A dengan CSRF sah.');
     check($b->request('?page=archive&id=' . $id)['status'] === 403, 'Student B ditolak untuk halaman archive barang A.');
@@ -144,7 +204,22 @@ try {
     check(!str_contains($guest->request('?page=browse&q=' . urlencode($suffix))['body'], $needle), 'Barang archived hilang daripada carian umum.');
     check(str_contains($a->request('?page=mine&status=archived')['body'], $needle), 'Pemilik boleh melihat rekod archived sendiri.');
     check($b->request('?page=view&id=' . $id)['status'] === 404, 'Barang archived tidak didedahkan kepada Student B.');
+    check($b->request($thread)['status'] === 200 && $b->request($thread, ['csrf_token' => $bToken, 'message' => 'Is it available?'], true)['status'] === 409, 'Archived listing preserves chat history and closes sending.');
     check($a->request('?page=edit&id=' . $id)['status'] === 409, 'Barang archived tidak boleh diedit.');
+    $new = $a->request('?page=create', $values, true);
+    parse_str(parse_url($new['headers']['location'] ?? '', PHP_URL_QUERY) ?? '', $newLocation);
+    $deletedId = (int) ($newLocation['id'] ?? 0);
+    check($new['status'] === 303 && $deletedId > 0, 'Create a separate listing to test deletion.');
+    $delete = '?page=delete&id=' . $deletedId;
+    $deletedThread = '?page=chat&id=' . $deletedId . '&buyer=' . $bId;
+    check($b->request($deletedThread, ['csrf_token' => $bToken, 'message' => 'Message before deletion.'], true)['status'] === 303, 'Create a chat before deletion.');
+    check($a->request($delete)['status'] === 200 && $a->request('?page=view&id=' . $deletedId)['status'] === 200, 'The delete confirmation GET leaves the listing intact.');
+    check($b->request($delete, ['csrf_token' => $bToken], true)['status'] === 403 && $a->request($delete, [], true)['status'] === 403, 'Delete requires owner permission and a valid CSRF token.');
+    check($a->request($delete, ['csrf_token' => $a->token($delete)], true)['status'] === 303, 'Owner can delete the listing.');
+    check($a->request('?page=view&id=' . $deletedId)['status'] === 404 &&
+        !str_contains($a->request('?page=mine')['body'], 'page=view&amp;id=' . $deletedId), 'Deleted listing disappears from detail and My listings.');
+    check(str_contains($b->request($deletedThread)['body'], 'Message before deletion.') &&
+        $b->request($deletedThread, ['csrf_token' => $bToken, 'message' => 'Message after deletion.'], true)['status'] === 409, 'Deleted listing keeps its chat history and closes sending.');
     $pdo->prepare('UPDATE user_sessions SET created_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 2 HOUR), expires_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 HOUR) WHERE user_id = ?')->execute([$bId]);
     check($b->request('?page=mine')['status'] === 303, 'Session tamat tidak boleh membuka halaman dilindungi.');
     check($a->request('?page=logout', ['csrf_token' => $a->token('?page=mine')], true)['status'] === 303, 'Log keluar berjaya.');
@@ -153,12 +228,21 @@ try {
     $replay = new TestClient(); $replay->replay($session);
     check($replay->request('?page=mine')['status'] === 303, 'Token lama tidak boleh digunakan semula selepas logout.');
     check($a->request('?page=logout')['status'] === 405, 'GET logout ditolak untuk elak perubahan melalui link.');
+    $admin->request('?page=logout', ['csrf_token' => $adminToken], true);
 } catch (Throwable $error) {
     $failed = true;
     fwrite(STDERR, 'FAIL: ' . $error->getMessage() . "\n");
 } finally {
+    if ($adminId > 0) {
+        $pdo->prepare('DELETE FROM user_sessions WHERE user_id = ?')->execute([$adminId]);
+        $pdo->prepare('DELETE FROM users WHERE user_id = ?')->execute([$adminId]);
+    }
+    foreach ($requestIds as $requestId) {
+        $pdo->prepare('DELETE FROM requests WHERE request_id = ?')->execute([$requestId]);
+    }
     $owned = $pdo->prepare('SELECT user_id FROM users WHERE email IN (?, ?)'); $owned->execute($emails); $ids = $owned->fetchAll(PDO::FETCH_COLUMN);
     foreach ($ids as $userId) {
+        $pdo->prepare('DELETE m FROM listing_messages m JOIN listings l ON l.listing_id = m.listing_id WHERE l.owner_id = ? OR m.buyer_id = ?')->execute([$userId, $userId]);
         $pdo->prepare('DELETE t FROM translations t JOIN listings l ON l.listing_id = t.listing_id WHERE l.owner_id = ?')->execute([$userId]);
         $pdo->prepare('DELETE FROM user_sessions WHERE user_id = ?')->execute([$userId]);
         $pdo->prepare('DELETE FROM listings WHERE owner_id = ?')->execute([$userId]);

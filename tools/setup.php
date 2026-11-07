@@ -33,6 +33,10 @@ try {
             $admin->exec($statement);
         }
     }
+    $deletedAt = $admin->query("SHOW COLUMNS FROM listings LIKE 'deleted_at'")->fetch();
+    if (!$deletedAt) {
+        $admin->exec('ALTER TABLE listings ADD COLUMN deleted_at DATETIME NULL');
+    }
     $account = $admin->quote($config['username']) . "@'localhost'";
     $admin->exec('CREATE USER IF NOT EXISTS ' . $account . ' IDENTIFIED BY ' . $admin->quote($config['password']));
     $admin->exec("GRANT SELECT, INSERT, UPDATE, DELETE ON `$name`.* TO " . $account);
@@ -44,7 +48,7 @@ try {
         }
     }
     seedDatabase($app);
-    echo "SIAP: database $name, enam table dan data demo tersedia.\n";
+    echo "Ready: database $name, schema and demo accounts are available.\n";
     echo "Config aplikasi: config/local.php (password tidak dipaparkan).\n";
     echo "Aplikasi menggunakan ecotrade_app, bukan akaun root.\n";
     echo "Seterusnya: jalankan scripts/check.ps1, kemudian scripts/serve.ps1.\n";

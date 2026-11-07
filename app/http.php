@@ -34,7 +34,7 @@ function positiveId(array $source, string $key = 'id'): int
 {
     $value = filter_var(input($source, $key), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
     if ($value === false) {
-        throw new HttpError(400, 'ID barang tidak sah.');
+        throw new HttpError(400, 'Invalid record ID.');
     }
     return $value;
 }
@@ -56,4 +56,18 @@ function fieldError(string $name, array $errors): void
 function fieldState(string $name, array $errors): string
 {
     return isset($errors[$name]) ? ' aria-invalid="true" aria-describedby="error-' . e($name) . '"' : '';
+}
+
+function passwordField(string $field, string $label, string $autocomplete, array $errors, bool $required = true, bool $new = false): void
+{
+    require __DIR__ . '/views/password-field.php';
+}
+
+function avatar(int $id, string $name, bool $hasPhoto): void
+{
+    if ($hasPhoto): ?>
+        <img class="avatar" src="<?= e(url('avatar', ['id' => $id])) ?>" width="48" height="48" alt="">
+    <?php else: ?>
+        <span class="avatar avatar-initial" aria-hidden="true"><?= e(mb_strtoupper(mb_substr($name, 0, 1))) ?></span>
+    <?php endif;
 }

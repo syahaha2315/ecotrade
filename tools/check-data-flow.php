@@ -39,7 +39,7 @@ try {
         $disable->execute([$row['category_id']]);
     }
     $empty = readEndpoint();
-    if (($empty['status'] ?? '') !== 'connected' || $empty['categories'] !== [] || !str_contains($empty['message'], 'Belum ada kategori')) {
+    if (($empty['status'] ?? '') !== 'connected' || $empty['categories'] !== [] || !str_contains($empty['message'], 'no active categories')) {
         throw new RuntimeException('Respons kategori kosong belum betul.');
     }
     echo "PASS: Tiada kategori aktif memberi senarai kosong dan mesej yang sesuai.\n";

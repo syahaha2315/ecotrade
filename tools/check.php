@@ -38,9 +38,9 @@ try {
     verify($pdo->query('SELECT 1')->fetchColumn() == 1, 'PHP boleh membaca database melalui PDO.');
     $tables = $pdo->query("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'")->fetchAll(PDO::FETCH_COLUMN);
     sort($tables);
-    verify($tables === ['categories', 'listings', 'requests', 'translations', 'user_sessions', 'users'], 'Enam table ERD wujud, tanpa table tambahan.');
+    verify($tables === ['categories', 'google_accounts', 'listing_messages', 'listing_photos', 'listings', 'requests', 'translations', 'user_avatars', 'user_sessions', 'users'], 'Ten tables are available, including profile photos.');
     $foreignKeys = $pdo->query("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_TYPE = 'FOREIGN KEY'")->fetchColumn();
-    verify((int) $foreignKeys === 8, 'Lapan foreign key menghubungkan enam table.');
+    verify((int) $foreignKeys === 14, 'Fourteen foreign keys protect table relationships.');
     $categories = $pdo->query('SELECT category_name FROM categories WHERE is_active = 1 ORDER BY category_id')->fetchAll(PDO::FETCH_COLUMN);
     verify(count($categories) >= 3, 'Kategori aktif dibaca daripada database: ' . implode(', ', $categories));
     verify(!str_starts_with($pdo->query('SELECT CURRENT_USER()')->fetchColumn(), 'root@'), 'Aplikasi bersambung dengan akaun selain root.');

@@ -1,28 +1,37 @@
 <div class="auth-layout">
     <aside class="auth-aside">
-        <p class="section-label">Ruang pelajar</p>
-        <p class="auth-copy">Buku yang dah habis dibaca,<br>masih boleh membantu.</p>
-        <p>Kongsi buku, kalkulator dan alat pembelajaran yang masih elok dengan pelajar lain.</p>
-        <p class="aside-note">Mulakan dengan akaun sendiri. Setiap barang kekal di bawah nama pemiliknya.</p>
+        <p class="section-label">Student marketplace</p>
+        <p class="auth-copy">Pass on the books<br>you no longer need.</p>
+        <p>Share books, calculators and learning tools with other students.</p>
+        <p class="aside-note">List items you can pass on, or find materials for your next class.</p>
     </aside>
     <section class="form-panel" aria-labelledby="auth-heading">
-        <h1 id="auth-heading"><?= $page === 'register' ? 'Daftar akaun' : 'Log masuk' ?></h1>
-        <p class="muted"><?= $page === 'register' ? 'Satu akaun untuk kongsi dan urus barang kau.' : 'Sambung mengurus barang yang kau kongsi.' ?></p>
-        <?php if ($errors !== []): ?>
-            <div class="error-summary" role="alert"><p><?= e($errors['login'] ?? 'Semak maklumat dalam borang di bawah.') ?></p></div>
+        <h1 id="auth-heading"><?= $page === 'register' ? 'Create account' : 'Sign in' ?></h1>
+        <p class="muted"><?= $page === 'register' ? 'Create a student account to post listings and message other students.' : 'Manage your listings and conversations.' ?></p>
+        <?php if (googleSettings() !== null): ?>
+            <a class="button google-button" href="<?= e(url('google')) ?>">Continue with Google</a>
+            <p class="auth-divider muted">or use your email</p>
         <?php endif; ?>
-        <form method="post" action="<?= e(url($page)) ?>" class="stack-form">
+        <?php if ($errors !== []): ?>
+            <div class="error-summary" role="alert"><p><?= e($errors['login'] ?? 'Check the fields below.') ?></p></div>
+        <?php endif; ?>
+        <form method="post" action="<?= e(url($page)) ?>" class="stack-form" <?= $page === 'register' ? 'data-confirm="Create this account?" data-confirm-action="Create account"' : '' ?>>
             <input type="hidden" name="csrf_token" value="<?= e($csrfToken) ?>">
             <?php if ($page === 'register'): ?>
-                <div><label for="full_name">Nama penuh</label><input id="full_name" name="full_name" autocomplete="name" required minlength="2" maxlength="120" value="<?= e($values['full_name']) ?>"<?= fieldState('full_name', $errors) ?>><?php fieldError('full_name', $errors); ?></div>
+                <div><label for="full_name">Full name</label><input id="full_name" name="full_name" autocomplete="name" required minlength="2" maxlength="120" value="<?= e($values['full_name']) ?>"<?= fieldState('full_name', $errors) ?>><?php fieldError('full_name', $errors); ?></div>
             <?php endif; ?>
-            <div><label for="email">Email</label><input type="email" id="email" name="email" autocomplete="username" required maxlength="254" value="<?= e($values['email']) ?>"<?= fieldState('email', $errors) ?>><?php fieldError('email', $errors); ?></div>
-            <div><label for="password">Password</label><input type="password" id="password" name="password" autocomplete="<?= $page === 'register' ? 'new-password' : 'current-password' ?>" required <?= $page === 'register' ? 'minlength="10" maxlength="72"' : 'maxlength="72"' ?><?= fieldState('password', $errors) ?>><?php fieldError('password', $errors); ?><?php if ($page === 'register'): ?><p class="field-help">Sekurang-kurangnya 10 aksara.</p><?php endif; ?></div>
+            <div><label for="email">Email</label><input type="email" id="email" name="email" autocomplete="username" required maxlength="254" pattern="[^@\s]+@[^@\s.]+(\.[^@\s.]+)+" title="Use a full email address such as name@gmail.com" value="<?= e($values['email']) ?>"<?= fieldState('email', $errors) ?>
+                <?php if ($page === 'register'): ?> data-email-domains="<?= e(implode(' ', SIGNUP_EMAIL_DOMAINS)) ?>" <?= isset($errors['email']) ? '' : 'aria-describedby="email-help"' ?><?php endif; ?>>
+                <?php fieldError('email', $errors); ?>
+                <?php if ($page === 'register'): ?><p class="field-help" id="email-help">Use a supported provider such as Gmail, Outlook, Yahoo, iCloud or Proton Mail.</p><?php endif; ?>
+            </div>
+            <?php passwordField('password', 'Password', $page === 'register' ? 'new-password' : 'current-password', $errors, true, $page === 'register'); ?>
             <?php if ($page === 'register'): ?>
-                <div><label for="password_confirmation">Ulang password</label><input type="password" id="password_confirmation" name="password_confirmation" autocomplete="new-password" required maxlength="72"<?= fieldState('password_confirmation', $errors) ?>><?php fieldError('password_confirmation', $errors); ?></div>
+                <p id="signup-password-help" class="field-help"><?= e(SIGNUP_PASSWORD_HELP) ?></p>
+                <?php passwordField('password_confirmation', 'Confirm password', 'new-password', $errors, true, true); ?>
             <?php endif; ?>
-            <button class="button button-primary" type="submit"><?= $page === 'register' ? 'Daftar akaun' : 'Log masuk' ?></button>
+            <button class="button button-primary" type="submit"><?= $page === 'register' ? 'Create account' : 'Sign in' ?></button>
         </form>
-        <p class="form-switch"><?= $page === 'register' ? 'Dah ada akaun?' : 'Belum ada akaun?' ?> <a href="<?= e(url($page === 'register' ? 'login' : 'register')) ?>"><?= $page === 'register' ? 'Log masuk' : 'Daftar akaun' ?></a></p>
+        <p class="form-switch"><?= $page === 'register' ? 'Already have an account?' : 'New to EcoTrade?' ?> <a href="<?= e(url($page === 'register' ? 'login' : 'register')) ?>"><?= $page === 'register' ? 'Sign in' : 'Create account' ?></a></p>
     </section>
 </div>

@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS listings (
     item_condition ENUM('new', 'like_new', 'good', 'fair') NOT NULL DEFAULT 'good',
     listing_type ENUM('donation', 'exchange') NOT NULL,
     status ENUM('available', 'reserved', 'completed', 'archived') NOT NULL DEFAULT 'available',
+    deleted_at DATETIME NULL,
     image_s3_key VARCHAR(1024) NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -91,3 +92,40 @@ CREATE TABLE IF NOT EXISTS user_sessions (
     CONSTRAINT ck_sessions_expiry CHECK (expires_at > created_at),
     INDEX idx_sessions_expiry (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS listing_photos (
+    photo_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    listing_id INT UNSIGNED NOT NULL,
+    mime_type VARCHAR(20) NOT NULL,
+    image_width SMALLINT UNSIGNED NOT NULL,
+    image_height SMALLINT UNSIGNED NOT NULL,
+    image_data MEDIUMBLOB NOT NULL,
+    CONSTRAINT fk_photos_listing FOREIGN KEY (listing_id) REFERENCES listings (listing_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS listing_messages (
+    message_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    listing_id INT UNSIGNED NOT NULL,
+    buyer_id INT UNSIGNED NOT NULL,
+    sender_id INT UNSIGNED NOT NULL,
+    body VARCHAR(2000) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_messages_thread (listing_id, buyer_id, message_id),
+    INDEX idx_messages_buyer (buyer_id, listing_id),
+    CONSTRAINT fk_messages_listing FOREIGN KEY (listing_id) REFERENCES listings (listing_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_messages_buyer FOREIGN KEY (buyer_id) REFERENCES users (user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_messages_sender FOREIGN KEY (sender_id) REFERENCES users (user_id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS google_accounts (
+    google_subject VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL UNIQUE,
+    CONSTRAINT fk_google_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS user_avatars (
+    user_id INT UNSIGNED PRIMARY KEY,
+    mime_type VARCHAR(20) NOT NULL,
+    image_data MEDIUMBLOB NOT NULL,
+    CONSTRAINT fk_avatar_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB;

@@ -1,21 +1,40 @@
 # EcoTrade prototype
 
-Langkah 1 hingga 5 tersedia: database enam table ikut ERD, register/login/logout, listing CRUDS dan permission pemilik. Buka [EcoTrade tempatan](http://127.0.0.1:8000/) untuk guna aplikasi. Endpoint JSON sambungan database kini berada di [health.php](http://127.0.0.1:8000/health.php). AWS belum dideploy.
+The English prototype includes student accounts, listings, optional photo galleries, private messages and an admin dashboard. Open [EcoTrade](http://127.0.0.1:8000/) or check the database at [health.php](http://127.0.0.1:8000/health.php).
 
-Jika database dan PHP sudah berjalan daripada sesi sebelumnya, **refresh browser sahaja**. Tiada migration atau setup semula diperlukan untuk langkah 3, 4 dan 5.
+For an existing database, start MariaDB and run setup once. It adds any missing tables, including the profile photo table.
 
-## Cuba flow demo Progress 2
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup.ps1
+```
 
-1. Klik **Daftar akaun**. Isi nama, email dan password sekurang-kurangnya 10 aksara. Ulang password yang sama. Akaun baharu sentiasa berperanan student.
-2. Selepas berjaya, halaman **Log masuk** dibuka. Cuba password salah dahulu untuk lihat ralat, kemudian log masuk dengan password betul.
-3. Buka **Tambah barang**. Contoh tajuk: `Buku Matematik Demo`. Pilih kategori, keadaan, jenis perkongsian dan bahasa. Isi penerangan sekurang-kurangnya 20 aksara, kemudian **Simpan barang**.
-4. Buka **Cari barang**, cari tajuk tadi dan cuba penapis kategori/keadaan/jenis. Klik tajuk atau **Lihat barang** untuk membuka detail.
-5. Pada barang sendiri, klik **Edit barang**, ubah maklumat dan **Simpan perubahan**. Refresh halaman untuk semak perubahan masih ada.
-6. Semak permission menggunakan browser private/incognito supaya session A dan B berasingan. Log masuk sebagai `student.b@ecotrade.test` dengan password `EcoTradeDemo!2026`. Cuba URL edit milik akaun pertama (`/?page=edit&id=ID_BARANG`). Permintaan akan menerima **403**, termasuk POST jika seseorang cuba menghantar borang sendiri. Akaun B juga tidak boleh archive barang itu.
-7. Kembali ke browser pemilik. Klik **Arkibkan barang** dan sahkan **Ya, arkibkan barang**. Barang hilang daripada carian umum; pemilik boleh lihat rekodnya dalam **Barang saya**, penapis **Status: Diarkibkan**. Archive ialah tindakan akhir untuk prototype ini; fungsi restore belum disediakan.
-8. Klik **Log keluar**. Halaman dilindungi kini memerlukan login semula.
+## Sign in as admin
 
-`Sumbangan` dan `Pertukaran` sekarang ialah jenis listing. Workflow menghantar/menerima request dan pickup akan ditambah kemudian. Gambar masih optional dan tiada upload gambar dalam fasa ini.
+Use the provisioned admin email and EcoTrade password on [Sign in](http://127.0.0.1:8000/?page=login). The admin lands on **Admin dashboard**. Open **Users** to search, activate or deactivate student accounts, **Categories** to add, rename or change category availability, and **Reports** to filter monthly activity and download CSV. Deactivation revokes the student's existing sessions.
+
+On another local installation, run the following with an email address you control. The command prints the generated password once. `--retire-demo` disables the original demo admin and revokes its sessions after the new account is created.
+
+```powershell
+& 'C:\xampp\php\php.exe' .\tools\create-admin.php 'your-admin@gmail.com' --retire-demo
+```
+
+## Student demo
+
+1. Create an account or sign in as `student.a@ecotrade.test` with `EcoTradeDemo!2026`. Choose **Add listing** and fill in the item details. Add up to four optional JPEG, PNG, WebP, GIF, AVIF or BMP photos, each under 10 MB and at most 60 megapixels. **Generate draft** uses the item details and can include the dominant colour of the first photo. You can edit the draft before publishing.
+2. Open the listing to swipe or choose a photo by number. **Edit listing** lets the owner replace or remove photos. The local prototype stores photos in the database.
+3. In a private browser window, sign in as `student.b@ecotrade.test` with the same demo password. Open Student A's listing and choose **Message owner**. The chat header shows the other student and the listing's title, photo and status. Student A can reply from **Messages**. Choose **Refresh messages** to check for a reply.
+4. Search and filter listings, then edit or archive your own listing. An archived listing remains in **My listings** and its chat history stays readable to the participants.
+
+Open **Profile** to edit your name or add, replace or remove a photo. Under **Email and password**, enter your current EcoTrade password to change your sign-in details. Saving a new email or password signs out your other sessions. Email fields check the address format.
+
+## Enable Continue with Google
+
+1. In your Google Cloud project, configure the OAuth consent screen and create a **Web application** OAuth client. Add your Google account as a test user if the app is in testing mode.
+2. Register the exact redirect URI `http://127.0.0.1:8000/google-callback.php`.
+3. Copy `config/google.example.php` to `config/google.local.php`. Fill in the Client ID and Client Secret locally. Alternatively set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REDIRECT_URI` for the PHP server.
+4. Open EcoTrade at `http://127.0.0.1:8000/`. **Continue with Google** appears on Sign in and Create account. Students with existing email/password accounts first sign in and choose **Connect Google account** from **My listings**. Admin uses the password sign-in above.
+
+The local config file is ignored by Git. See [Google's web server OAuth setup](https://developers.google.com/identity/protocols/oauth2/web-server).
 
 Ujian automatik tambahan, selepas database dan PHP port 8000 berjalan:
 
@@ -23,7 +42,7 @@ Ujian automatik tambahan, selepas database dan PHP port 8000 berjalan:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check.ps1 -Prototype
 ```
 
-Ia menjalankan 18 semakan database dan 49 semakan HTTP prototype. Ujian mencipta dua akaun QA rawak dan kategori sementara, kemudian membersihkan rekod ujian sendiri. Bukti ujian dan Delivery Gate terkini ada dalam [docs/PROTOTYPE-TESTS.md](docs/PROTOTYPE-TESTS.md).
+Ia menjalankan semakan database dan HTTP, termasuk admin, laporan dan chat. Rekod QA sementara dibersihkan selepas ujian.
 
 Folder projek kekal di `C:\Users\Syakir\Desktop\Bitu3923\Eco trade`. Tidak perlu pindah ke `htdocs`, pasang Composer atau hidupkan Apache. PHP built-in server digunakan untuk demo tempatan.
 
@@ -51,7 +70,7 @@ PHP dan MariaDB sudah tersedia dalam `C:\xampp`. Semasa semakan laptop ini, inst
    Hasil yang dijangka:
 
    ```text
-   SIAP: database ecotrade, enam table dan data demo tersedia.
+   Ready: database ecotrade, schema and demo accounts are available.
    ```
 
    Instance projek ini dicipta dengan akaun admin `root` tanpa password dan hanya mendengar pada `127.0.0.1`. Ini untuk latihan tempatan sahaja. Aplikasi menggunakan akaun berasingan dengan password rawak. Jika kau menetapkan password root instance projek kemudian, gunakan command ini dan masukkan password apabila diminta:
@@ -79,12 +98,12 @@ PHP dan MariaDB sudah tersedia dalam `C:\xampp`. Semasa semakan laptop ini, inst
    ```json
    {
        "application": "EcoTrade",
-       "stage": "Semakan sambungan database EcoTrade",
+       "stage": "EcoTrade database check",
        "status": "connected",
-       "message": "PHP berjaya membaca kategori daripada database.",
+       "message": "PHP read the categories from the database.",
        "categories": [
-           { "category_id": 1, "category_name": "Buku" },
-           { "category_id": 2, "category_name": "Kalkulator" },
+           { "category_id": 1, "category_name": "Books" },
+           { "category_id": 2, "category_name": "Calculators" },
            { "category_id": 3, "category_name": "Learning Tools" }
        ]
    }
@@ -115,13 +134,13 @@ Jika root ada password, tambah `-p` sebelum `ecotrade`. Dalam prompt MariaDB, ja
 ```sql
 SHOW TABLES;
 SELECT category_id, category_name, is_active FROM categories;
-UPDATE categories SET category_name = 'Buku Rujukan' WHERE category_name = 'Buku';
+UPDATE categories SET category_name = 'Reference Books' WHERE category_name = 'Books';
 ```
 
-Refresh browser di `/health.php` atau halaman carian. Nama kategori akan bertukar kepada `Buku Rujukan`. Hentikan PHP dengan Ctrl+C, jalankan semula `serve.ps1` dan refresh: nama itu masih tersimpan. Pulihkan data demo sebelum presentation:
+Refresh browser di `/health.php` atau halaman carian. Nama kategori akan bertukar kepada `Reference Books`. Hentikan PHP dengan Ctrl+C, jalankan semula `serve.ps1` dan refresh untuk semak nama yang disimpan. Pulihkan nama demo dengan arahan berikut.
 
 ```sql
-UPDATE categories SET category_name = 'Buku' WHERE category_name = 'Buku Rujukan';
+UPDATE categories SET category_name = 'Books' WHERE category_name = 'Reference Books';
 exit;
 ```
 
@@ -130,18 +149,17 @@ Jangan jalankan setup ketika nama kategori demo diubah: seed mencari kategori be
 ## Apa yang setup buat
 
 - Cipta database `ecotrade` jika belum wujud.
-- Cipta enam table dengan InnoDB, UTF-8 (`utf8mb4`), primary key, unique key, lapan foreign key dan CHECK constraints.
+- Cipta enam table asal serta `listing_photos`, `listing_messages`, `google_accounts` dan `user_avatars`.
 - Cipta akaun aplikasi `ecotrade_app` untuk localhost, dengan akses `SELECT`, `INSERT`, `UPDATE`, `DELETE` pada database ini sahaja. Akaun root digunakan semasa setup.
 - Jana password database rawak dan simpan dalam `config/local.php`. Fail ini diabaikan Git dan berada di luar folder web `public`.
 - Tambah tiga kategori, tiga akaun demo dan dua listing demo tanpa gambar. Password akaun demo diproses dengan `password_hash()`.
 
 | Akaun demo | Peranan | Password awal |
 | --- | --- | --- |
-| `admin@ecotrade.test` | admin | `EcoTradeDemo!2026` |
 | `student.a@ecotrade.test` | student | `EcoTradeDemo!2026` |
 | `student.b@ecotrade.test` | student | `EcoTradeDemo!2026` |
 
-Akaun ini data ujian tempatan dan boleh digunakan pada halaman Log masuk. Password demo ini berbeza daripada password rawak akaun database `ecotrade_app`. Email tidak dihantar atau disahkan dalam prototype ini.
+Akaun ini untuk ujian tempatan pada halaman **Sign in**. EcoTrade menyemak format email. Pengesahan pemilikan inbox memerlukan integrasi email atau Google.
 
 Setup boleh diulang: rekod dengan email, nama kategori dan pasangan pemilik/tajuk demo yang sama tidak digandakan; password dan maklumat rekod sedia ada tidak direset. Ia bukan alat migration dan tidak mengubah struktur table sedia ada. Jangan guna pada database projek lain atau database production. Jangan padam `config/local.php` selepas setup, sebab ia menyimpan password akaun database.
 
@@ -177,7 +195,7 @@ Session login menggunakan token rawak dengan tempoh lapan jam. Hanya hash token 
 
 | Fail | Fungsi |
 | --- | --- |
-| `database/schema.sql` | SQL enam table; boleh dibaca untuk explain ERD. |
+| `database/schema.sql` | Skema asal serta jadual gambar, chat dan akaun Google. |
 | `database/seed.php` | Data demo dan hashing password. |
 | `app/database.php` | Sambungan PDO untuk authentication, listing dan health check. |
 | `app/auth.php` | Register, verification password, session database dan CSRF. |
@@ -189,7 +207,7 @@ Session login menggunakan token rawak dengan tempoh lapan jam. Hanya hash token 
 | `public/assets/` | CSS responsive dan JavaScript untuk tema/loading. |
 | `tools/setup.php` | Cipta database, table, akaun aplikasi dan data demo melalui CLI. |
 | `tools/check.php` | Uji sambungan, struktur dan constraint menggunakan transaksi sementara. |
-| `tools/check-prototype.php` | 49 ujian HTTP dengan dua akaun QA berasingan. |
+| `tools/check-prototype.php` | Ujian HTTP untuk listing, chat, admin dan laporan. |
 | `scripts/*.ps1` | Command ringkas untuk setup, semak dan jalankan server. |
 | `config/local.php` | Config peribadi yang dijana oleh setup. Jangan share atau commit. |
 | `.local/mysql` | Data database berasingan untuk projek ini. Jangan padam atau commit. |
